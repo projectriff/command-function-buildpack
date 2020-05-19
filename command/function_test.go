@@ -1,5 +1,5 @@
 /*
- * Copyright 2018-2019 the original author or authors.
+ * Copyright 2018-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,65 +17,76 @@
 package command_test
 
 import (
+	"fmt"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/buildpack/libbuildpack/buildpackplan"
-	"github.com/cloudfoundry/libcfbuildpack/test"
-	"github.com/onsi/gomega"
+	"github.com/buildpacks/libcnb"
+	. "github.com/onsi/gomega"
 	"github.com/projectriff/command-function-buildpack/command"
 	"github.com/sclevine/spec"
-	"github.com/sclevine/spec/report"
 )
 
-func TestFunction(t *testing.T) {
-	spec.Run(t, "Function", func(t *testing.T, _ spec.G, it spec.S) {
+func testFunction(t *testing.T, context spec.G, it spec.S) {
+	var (
+		Expect = NewWithT(t).Expect
 
-		g := gomega.NewWithT(t)
+		ctx libcnb.BuildContext
+	)
 
-		var f *test.BuildFactory
+	it.Before(func() {
+		var err error
 
-		it.Before(func() {
-			f = test.NewBuildFactory(t)
-		})
+		ctx.Application.Path, err = ioutil.TempDir("", "function-application")
+		Expect(err).NotTo(HaveOccurred())
 
-		it("returns true if build plan exists", func() {
-			f.AddPlan(buildpackplan.Plan{
-				Name: command.Dependency,
-				Metadata: map[string]interface{}{
-					command.Command: "test-file",
-				},
-			})
+		ctx.Layers.Path, err = ioutil.TempDir("", "function-layers")
+		Expect(err).NotTo(HaveOccurred())
+	})
 
-			_, ok, err := command.NewFunction(f.Build)
-			g.Expect(err).NotTo(gomega.HaveOccurred())
+	it.After(func() {
+		Expect(os.RemoveAll(ctx.Application.Path)).To(Succeed())
+		Expect(os.RemoveAll(ctx.Layers.Path)).To(Succeed())
+	})
 
-			g.Expect(ok).To(gomega.BeTrue())
-		})
+	it("returns error if path does not exist", func() {
+		_, err := command.NewFunction(ctx.Application.Path, "test-command")
 
-		it("returns false if build plan does not exist", func() {
-			_, ok, err := command.NewFunction(f.Build)
-			g.Expect(err).NotTo(gomega.HaveOccurred())
+		Expect(err).To(MatchError(fmt.Sprintf("command %s does not exist", "test-command")))
+	})
 
-			g.Expect(ok).To(gomega.BeFalse())
-		})
+	it("returns error if path is not a file", func() {
+		Expect(os.MkdirAll(filepath.Join(ctx.Application.Path, "test-command"), 0755)).To(Succeed())
 
-		it("contributes function to launch", func() {
-			f.AddPlan(buildpackplan.Plan{
-				Name: command.Dependency,
-				Metadata: map[string]interface{}{
-					command.Command: "test-file",
-				},
-			})
+		_, err := command.NewFunction(ctx.Application.Path, "test-command")
 
-			h, _, err := command.NewFunction(f.Build)
-			g.Expect(err).NotTo(gomega.HaveOccurred())
+		Expect(err).To(MatchError(fmt.Sprintf("command %s is not an executable file", "test-command")))
+	})
 
-			g.Expect(h.Contribute()).To(gomega.Succeed())
+	it("returns error if path is not executable", func() {
+		Expect(ioutil.WriteFile(filepath.Join(ctx.Application.Path, "test-command"), []byte{}, 0644)).To(Succeed())
 
-			layer := f.Build.Layers.Layer("command-function")
-			g.Expect(layer).To(test.HaveLayerMetadata(false, false, true))
-			g.Expect(layer).To(test.HaveOverrideLaunchEnvironment("FUNCTION_URI", filepath.Join(f.Build.Application.Root, "test-file")))
-		})
-	}, spec.Report(report.Terminal{}))
+		_, err := command.NewFunction(ctx.Application.Path, "test-command")
+
+		Expect(err).To(MatchError(fmt.Sprintf("command %s is not an executable file", "test-command")))
+	})
+
+	it("contributes function", func() {
+		Expect(ioutil.WriteFile(filepath.Join(ctx.Application.Path, "test-command"), []byte{}, 0755)).To(Succeed())
+
+		f, err := command.NewFunction(ctx.Application.Path, "test-command")
+		Expect(err).NotTo(HaveOccurred())
+
+		layer, err := ctx.Layers.Layer("test-layer")
+		Expect(err).NotTo(HaveOccurred())
+
+		layer, err = f.Contribute(layer)
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(layer.Launch).To(BeTrue())
+		Expect(layer.LaunchEnvironment["FUNCTION_URI.override"]).To(Equal(filepath.Join(ctx.Application.Path, "test-command")))
+	})
+
 }

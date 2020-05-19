@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 the original author or authors.
+ * Copyright 2018-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,16 @@
 package main
 
 import (
+	"os"
+
+	"github.com/paketo-buildpacks/libpak"
+	"github.com/paketo-buildpacks/libpak/bard"
 	"github.com/projectriff/command-function-buildpack/command"
-	"github.com/projectriff/libfnbuildpack/function"
 )
 
 func main() {
-	function.Buildpack{BuildpackImplementation: command.Buildpack{}}.Detect()
+	libpak.Main(
+		command.Detect{},
+		command.Build{Logger: bard.NewLogger(os.Stdout)},
+	)
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2018-2019 the original author or authors.
+ * Copyright 2018-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,66 +17,52 @@
 package command_test
 
 import (
+	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/buildpack/libbuildpack/layers"
-	"github.com/cloudfoundry/libcfbuildpack/buildpackplan"
-	"github.com/cloudfoundry/libcfbuildpack/test"
-	"github.com/onsi/gomega"
+	"github.com/buildpacks/libcnb"
+	. "github.com/onsi/gomega"
+	"github.com/paketo-buildpacks/libpak"
 	"github.com/projectriff/command-function-buildpack/command"
 	"github.com/sclevine/spec"
-	"github.com/sclevine/spec/report"
 )
 
-func TestInvoker(t *testing.T) {
-	spec.Run(t, "Invoker", func(t *testing.T, _ spec.G, it spec.S) {
+func testInvoker(t *testing.T, context spec.G, it spec.S) {
+	var (
+		Expect = NewWithT(t).Expect
 
-		g := gomega.NewWithT(t)
+		ctx libcnb.BuildContext
+	)
 
-		var f *test.BuildFactory
+	it.Before(func() {
+		var err error
 
-		it.Before(func() {
-			f = test.NewBuildFactory(t)
-		})
+		ctx.Layers.Path, err = ioutil.TempDir("", "function-layers")
+		Expect(err).NotTo(HaveOccurred())
+	})
 
-		it("returns true if build plan exists", func() {
-			f.AddDependency(command.Dependency, filepath.Join("testdata", "stub-invoker.tgz"))
-			f.AddPlan(buildpackplan.Plan{Name: command.Dependency})
+	it.After(func() {
+		Expect(os.RemoveAll(ctx.Layers.Path)).To(Succeed())
+	})
 
-			_, ok, err := command.NewInvoker(f.Build)
-			g.Expect(err).NotTo(gomega.HaveOccurred())
+	it("contributes invoker", func() {
+		dep := libpak.BuildpackDependency{
+			URI:    "https://localhost/stub-invoker.tgz",
+			SHA256: "25e54ba062dec9e0c136cd150f623766ddd5c3823ac1ca34e772460ad4b40581",
+		}
+		dc := libpak.DependencyCache{CachePath: "testdata"}
 
-			g.Expect(ok).To(gomega.BeTrue())
-		})
+		i := command.NewInvoker(dep, dc, &libcnb.BuildpackPlan{})
+		layer, err := ctx.Layers.Layer("test-layer")
+		Expect(err).NotTo(HaveOccurred())
 
-		it("returns false if build plan does not exist", func() {
-			_, ok, err := command.NewInvoker(f.Build)
-			g.Expect(err).NotTo(gomega.HaveOccurred())
+		layer, err = i.Contribute(layer)
+		Expect(err).NotTo(HaveOccurred())
 
-			g.Expect(ok).To(gomega.BeFalse())
-		})
+		Expect(layer.Launch).To(BeTrue())
+		Expect(filepath.Join(layer.Path, "bin", "fixture-marker")).To(BeARegularFile())
+	})
 
-		it("contributes invoker to launch", func() {
-			f.AddDependency(command.Dependency, filepath.Join("testdata", "stub-invoker.tgz"))
-			f.AddPlan(buildpackplan.Plan{Name: command.Dependency})
-
-			i, _, err := command.NewInvoker(f.Build)
-			g.Expect(err).NotTo(gomega.HaveOccurred())
-
-			g.Expect(i.Contribute()).To(gomega.Succeed())
-
-			layer := f.Build.Layers.Layer(command.Dependency)
-			g.Expect(layer).To(test.HaveLayerMetadata(false, false, true))
-			g.Expect(filepath.Join(layer.Root, "bin", "fixture-marker")).To(gomega.BeARegularFile())
-
-			command := "command-function-invoker"
-			g.Expect(f.Build.Layers).To(test.HaveApplicationMetadata(layers.Metadata{
-				Processes: []layers.Process{
-					{Type: "function", Command: command, Direct: false},
-					{Type: "web", Command: command, Direct: false},
-				},
-			}))
-		})
-	}, spec.Report(report.Terminal{}))
 }

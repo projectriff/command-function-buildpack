@@ -1,5 +1,5 @@
 /*
- * Copyright 2018-2019 the original author or authors.
+ * Copyright 2018-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,57 +18,50 @@ package command
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
-	"github.com/buildpack/libbuildpack/application"
-	"github.com/cloudfoundry/libcfbuildpack/build"
-	"github.com/cloudfoundry/libcfbuildpack/layers"
+	"github.com/buildpacks/libcnb"
+	"github.com/paketo-buildpacks/libpak"
+	"github.com/paketo-buildpacks/libpak/bard"
 )
 
-// Command is the key identifying the command executable in the build plan.
-const Command = "command"
+const Executable = 0100
 
-// Function represents the function to be executed.
 type Function struct {
-	application application.Application
-	executable  string
-	layer       layers.Layer
+	LayerContributor libpak.LayerContributor
+	Logger           bard.Logger
+	Path             string
 }
 
-// Contributes makes the contribution to the launch layer.
-func (f Function) Contribute() error {
-	return f.layer.Contribute(marker{"Command", f.executable}, func(layer layers.Layer) error {
-		return layer.OverrideLaunchEnv("FUNCTION_URI", filepath.Join(f.application.Root, f.executable))
-	}, layers.Launch)
-}
-
-// NewFunction creates a new instance returning true if the riff-invoker-command plan exists.
-func NewFunction(build build.Build) (Function, bool, error) {
-	p, ok, err := build.Plans.GetShallowMerged(Dependency)
-	if err != nil {
-		return Function{}, false, err
-	}
-	if !ok {
-		return Function{}, false, nil
-	}
-
-	exec, ok := p.Metadata[Command].(string)
-	if !ok {
-		return Function{}, false, fmt.Errorf("command metadata of incorrect type: %v", p.Metadata[Command])
+func NewFunction(applicationPath string, artifactPath string) (Function, error) {
+	file := filepath.Join(applicationPath, artifactPath)
+	if i, err := os.Stat(file); os.IsNotExist(err) {
+		return Function{}, fmt.Errorf("command %s does not exist", artifactPath)
+	} else if err != nil {
+		return Function{}, fmt.Errorf("unable to stat %s\n%w", artifactPath, err)
+	} else if !i.Mode().IsRegular() || i.Mode().Perm()&Executable != Executable {
+		return Function{}, fmt.Errorf("command %s is not an executable file", artifactPath)
 	}
 
 	return Function{
-		build.Application,
-		exec,
-		build.Layers.Layer("command-function"),
-	}, true, nil
+		LayerContributor: libpak.NewLayerContributor(bard.FormatIdentity("Command", artifactPath),
+			map[string]interface{}{"artifact": artifactPath}),
+		Path: file,
+	}, nil
 }
 
-type marker struct {
-	Type       string `toml:"type"`
-	Executable string `toml:"executable"`
+func (f Function) Contribute(layer libcnb.Layer) (libcnb.Layer, error) {
+	f.LayerContributor.Logger = f.Logger
+
+	return f.LayerContributor.Contribute(layer, func() (libcnb.Layer, error) {
+		layer.LaunchEnvironment.Override("FUNCTION_URI", f.Path)
+
+		layer.Launch = true
+		return layer, nil
+	})
 }
 
-func (m marker) Identity() (string, string) {
-	return m.Type, m.Executable
+func (Function) Name() string {
+	return "function"
 }
