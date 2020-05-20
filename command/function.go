@@ -24,6 +24,7 @@ import (
 	"github.com/buildpacks/libcnb"
 	"github.com/paketo-buildpacks/libpak"
 	"github.com/paketo-buildpacks/libpak/bard"
+	"github.com/projectriff/libfnbuildpack"
 )
 
 const Executable = 0100
@@ -45,7 +46,7 @@ func NewFunction(applicationPath string, artifactPath string) (Function, error) 
 	}
 
 	return Function{
-		LayerContributor: libpak.NewLayerContributor(bard.FormatIdentity("Command", artifactPath),
+		LayerContributor: libpak.NewLayerContributor(libfnbuildpack.FormatFunction("Command", artifactPath),
 			map[string]interface{}{"artifact": artifactPath}),
 		Path: file,
 	}, nil
