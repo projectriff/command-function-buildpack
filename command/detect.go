@@ -51,7 +51,7 @@ func (Detect) Detect(context libcnb.DetectContext) (libcnb.DetectResult, error) 
 
 	metadata, err := libfnbuildpack.Metadata(context.Application.Path, cr)
 	if err != nil {
-		return libcnb.DetectResult{}, fmt.Errorf("uanble to read riff metadata\n%w", err)
+		return libcnb.DetectResult{}, fmt.Errorf("unable to read riff metadata\n%w", err)
 	}
 
 	if _, ok := metadata["artifact"]; ok {
