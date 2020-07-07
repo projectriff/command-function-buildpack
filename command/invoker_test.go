@@ -25,8 +25,9 @@ import (
 	"github.com/buildpacks/libcnb"
 	. "github.com/onsi/gomega"
 	"github.com/paketo-buildpacks/libpak"
-	"github.com/projectriff/command-function-buildpack/command"
 	"github.com/sclevine/spec"
+
+	"github.com/projectriff/command-function-buildpack/command"
 )
 
 func testInvoker(t *testing.T, context spec.G, it spec.S) {

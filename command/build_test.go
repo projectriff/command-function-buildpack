@@ -24,8 +24,9 @@ import (
 
 	"github.com/buildpacks/libcnb"
 	. "github.com/onsi/gomega"
-	"github.com/projectriff/command-function-buildpack/command"
 	"github.com/sclevine/spec"
+
+	"github.com/projectriff/command-function-buildpack/command"
 )
 
 func testBuild(t *testing.T, context spec.G, it spec.S) {
