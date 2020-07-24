@@ -42,7 +42,7 @@ The function behavior is exposed _via_ standard buildpack [process types](https:
 #### Bindings
 The buildpack optionally accepts the following bindings during the build phase:
 
-### Type: `dependency-mapping`
+##### Type: `dependency-mapping`
 |Key                   | Value   | Description
 |----------------------|---------|------------
 |`<dependency-digest>` | `<uri>` | If needed, the buildpack will fetch the dependency with digest `<dependency-digest>` from `<uri>`
