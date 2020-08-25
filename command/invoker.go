@@ -51,9 +51,8 @@ func (i Invoker) Contribute(layer libcnb.Layer) (libcnb.Layer, error) {
 			return libcnb.Layer{}, fmt.Errorf("unable to extract %s\n%w", artifact.Name(), err)
 		}
 
-		layer.Launch = true
 		return layer, nil
-	})
+	}, libpak.LaunchLayer)
 }
 
 func (i Invoker) Name() string {
