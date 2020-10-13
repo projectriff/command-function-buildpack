@@ -44,7 +44,6 @@ jobs:
               with:
                 bucket: projectriff
                 glob: command-function-invoker/command-function-invoker-linux-amd64-([\d\.]+).tgz
-                service_account_key: ${{ secrets.RIFF_GCLOUD_SERVICE_ACCOUNT_KEY }}
             - id: buildpack
               name: Update Buildpack Dependency
               run: |
