@@ -63,9 +63,10 @@ func (b Build) Build(context libcnb.BuildContext) (libcnb.BuildResult, error) {
 		return libcnb.BuildResult{}, fmt.Errorf("unable to find dependency\n%w", err)
 	}
 
-	i := NewInvoker(dep, dc, result.Plan)
+	i, be := NewInvoker(dep, dc)
 	i.Logger = b.Logger
 	result.Layers = append(result.Layers, i)
+	result.BOM.Entries = append(result.BOM.Entries, be)
 
 	f, err := NewFunction(context.Application.Path, e.Metadata["artifact"].(string))
 	if err != nil {
